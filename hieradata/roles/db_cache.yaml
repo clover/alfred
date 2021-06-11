@@ -1,0 +1,6 @@
+## This file is only included as an example.
+##  These do not reflect actual properties for service in the given role
+
+component::memcached:
+  single_client_enabled: true
+

@@ -1,0 +1,9 @@
+echo-server::service_name: echo
+echo-server::port: 2222
+echo-server::host_tag: localhost
+
+echo-server::target_file_names:
+  - target_dir: ~
+    files:
+      - template: echo-server.properties.erb
+        name: dev.echo.properties

@@ -1,0 +1,4 @@
+## This file is only included as an example.
+## These do not reflect actual properties for service in the given node
+
+apigateway::host_tag: dev_node_echo

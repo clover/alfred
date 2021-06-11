@@ -1,0 +1,18 @@
+:backends:
+  - yaml
+
+:hierarchy:
+  - "modules/%{service}/data/%{service}"
+  # Only one of env/appenv/node should be provided
+  - "env/%{env}/%{service}"
+  - "env/%{env}/%{component}"
+  - "nodes/%{node}"
+  - "roles/%{role}"   # Should only be used with nodes
+  - "components/%{component}/data/%{component}"
+  - "common/%{service}"
+  # Lookup options
+  - "modules/%{service}/data/lookup_options"
+  - "components/%{component}/data/lookup_options"
+
+:yaml:
+  :datadir: hieradata

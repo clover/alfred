@@ -1,0 +1,14 @@
+<% unless memcached.nil? -%>
+<% if memcached.key?('pool_size') && !memcached['pool_size'].nil? -%>
+memcachedPoolSize=<%= memcached['pool_size'] %>
+<% end -%>
+<% if memcached.key?('nodes') && !memcached['nodes'].nil? -%>
+memcachedNodes=<%= memcached['nodes'] %>
+<% end -%>
+<% if memcached.key?('timeout_ms') && !memcached['timeout_ms'].nil? -%>
+memcachedRequestTimeout=<%= memcached['timeout_ms'] %>
+<% end -%>
+<% if memcached.key?('single_client_enabled') && !memcached['single_client_enabled'].nil? -%>
+memcachedSingleClientEnabled=<%= memcached['single_client_enabled'] %>
+<% end -%>
+<% end -%>

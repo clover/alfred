@@ -1,0 +1,19 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    deep_merge (1.2.1)
+    hiera (1.3.4)
+      json_pure
+    java-properties (0.2.0)
+    json_pure (2.2.0)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  deep_merge (= 1.2.1)
+  hiera (= 1.3.4)
+  java-properties (= 0.2.0)
+
+BUNDLED WITH
+   2.1.4
