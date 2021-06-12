@@ -1,1 +1,1 @@
-echo-server::foo: bar
+echo-server::service_name: bar

@@ -12,20 +12,21 @@ require 'deep_merge'
 
 # Use this lookup as default for components
 DEFAULT_COMPONENT_LOOKUP = {
-    :behavior => 'hash',
-    :strategy => 'deeper',
-    :merge_hash_arrays => 'true'
+  :behavior => 'hash',
+  :strategy => 'deeper',
+  :merge_hash_arrays => 'true'
 }
 
-AUTO_GEN_COMMENT = "%s THIS IS AN AUTO-GENERATED FILE"
-POUND_COMMENT = [:yaml, :properties, :py]
-DOUBLE_SLASH_COMMENT = [:json]
+AUTO_GEN_COMMENT     = "%s THIS IS AN AUTO-GENERATED FILE\n"
+POUND_COMMENT        = %w[yaml properties py]
+DOUBLE_SLASH_COMMENT = %w[json]
+MANIFEST_NAME        = "init.rb"
 
+
+# Get the respective manifest name for the given service.
+# @param [String]    hierarchy_name    The hierarchy name which would contain manifest
+# @return [String]                     Camel cased service name which reflects a manifest name for the service
 def get_manifest_name(hierarchy_name)
-  # Get the respective manifest name for the given service.
-  # @param [String]    hierarchy_name    The hierarchy name which would contain manifest
-  # @return [String]                     Camel cased service name which reflects a manifest name for the service
-
   hierarchy_name.split(/[_.-]/).collect(&:capitalize).join
 end
 
@@ -75,13 +76,13 @@ def parse_components(components, scope, parsed_components = {}, lookup_options =
 
   configs = {}
   comp_templates = []
-  use_comp_lookup = true ? lookup_options.nil? || lookup_options.empty? : false
+  use_comp_lookup = lookup_options.nil? || lookup_options.empty?
   components.each do |comp|
     next unless parsed_components.detect { |component| component[:name] == comp }.nil?
     scope['component'] = comp
     component_dir = File.join("hieradata", "components", comp)
-    if File.exists?(File.join(component_dir, "manifests", "init.rb"))
-      load File.join(component_dir, "manifests", "init.rb")
+    if File.exists?(File.join(component_dir, "manifests", MANIFEST_NAME))
+      load File.join(component_dir, "manifests", MANIFEST_NAME)
     else
       puts "Missing manifest for #{comp}. Skipping properties generation"
       return nil
@@ -92,8 +93,8 @@ def parse_components(components, scope, parsed_components = {}, lookup_options =
     comp_obj.instance_variables.each do |var|
       var = "#{var}".sub("@", "")
       lookup_value = "component::#{var}"
-      lookup_options = $hiera.lookup('lookup_options', {}, {'component' => comp}).
-          fetch(lookup_value, nil) if use_comp_lookup
+      lookup_options = $hiera.lookup('lookup_options', {}, { 'component' => comp }).
+        fetch(lookup_value, nil) if use_comp_lookup
       config_value = lookup(lookup_value, lookup_options.nil? ? DEFAULT_COMPONENT_LOOKUP : lookup_options, scope)
       if config_value.nil?
         puts "Could not find values for component #{comp}"
@@ -107,28 +108,28 @@ def parse_components(components, scope, parsed_components = {}, lookup_options =
       next if template == "." or template == ".."
       raise "Only erb templates are allowed" unless template.end_with?('erb')
       comp_templates << {
-          :name => template.chomp('.erb'),
-          :path => nil,
-          :properties => erb(File.read(File.join(dir, template)), configs)
+        :name => template.chomp('.erb'),
+        :path => nil,
+        :properties => erb(File.read(File.join(dir, template)), configs)
       }
     end
   end
   comp_templates
 end
 
-def load_module(module_name)
+def load_module?(module_name)
   # Loads a module's manifest in memory.
   # @returns [Boolean]    true if the module is successfully loaded else returns false
 
   modules_dir = File.join("hieradata", "modules")
 
-  if File.exists?(File.join(modules_dir, module_name, "manifests", "init.rb"))
-    load File.join(modules_dir, module_name, "manifests", "init.rb")
+  if File.exists?(File.join(modules_dir, module_name, "manifests", MANIFEST_NAME))
+    load File.join(modules_dir, module_name, "manifests", MANIFEST_NAME)
     return true
-  else
-    puts "Missing manifest for #{module_name}. Skipping properties generation"
-    return false
   end
+
+  puts "Missing manifest for #{module_name}. Skipping properties generation"
+  return false
 end
 
 def lookup_properties(mod, scope, service_configs = {})
@@ -141,7 +142,7 @@ def lookup_properties(mod, scope, service_configs = {})
 
   mod_obj = Object.const_get(get_manifest_name(mod)).new
   instance_properties = mod_obj.instance_variables
-  lookup_options = $hiera.lookup('lookup_options', {}, {'service' => mod})
+  lookup_options = $hiera.lookup('lookup_options', {}, { 'service' => mod })
   instance_properties.each do |var|
     config_key = "#{var}".sub("@", "")
     next if config_key == "components"
@@ -171,12 +172,12 @@ def parse_modules(modules, service_configs, scope, parsed_modules = [])
   modules.each do |mod|
     raise "Circular module dependency detected in module #{mod}" if !parsed_modules.nil? && parsed_modules.include?(mod)
     parsed_modules << mod
-    raise "Could not find module #{mod}" unless load_module(mod)
+    raise "Could not find module #{mod}" unless load_module?(mod)
     mod_obj = Object.const_get(get_manifest_name(mod)).new
     instance_properties = mod_obj.instance_variables
     if instance_properties.to_s.include?("@modules")
       service_configs.deep_merge!(parse_modules(mod_obj.instance_variable_get(:@modules), service_configs, scope, parsed_modules),
-                                  {:extend_existing_arrays => true})
+                                  { :extend_existing_arrays => true })
     end
     return lookup_properties(mod, scope, service_configs)
   end
@@ -194,9 +195,9 @@ def generate_service_properties(service_name, scope)
   #                           directories of the file to be generated
 
   modules_dir = File.join("hieradata", "modules")
-  return nil unless load_module(service_name)
+  return nil unless load_module?(service_name)
 
-  service_configs = {'components' => []}
+  service_configs = { 'components' => [] }
   service_obj = Object.const_get(get_manifest_name(service_name)).new
   if service_obj.instance_variables.to_s.include?("@modules")
     service_configs = parse_modules(service_obj.instance_variable_get(:@modules), service_configs, scope)
@@ -219,8 +220,8 @@ def generate_service_properties(service_name, scope)
       template_file = File.join(service_template_dir, template)
       properties = erb(File.read(template_file), service_configs)
       configs << {
-          :name => template.chomp(".erb"),
-          :properties => properties
+        :name => template.chomp(".erb"),
+        :properties => properties
       }
     end
   else
@@ -229,10 +230,10 @@ def generate_service_properties(service_name, scope)
       target['files'].each do |file|
         template_file = File.join(service_template_dir, file['template'])
         configs << {
-            :name => file['name'],
-            :path => target['target_dir'],
-            :clean => target.fetch('clean', 'false'),
-            :properties => erb(File.read(template_file), service_configs)
+          :name => file['name'],
+          :path => target['target_dir'],
+          :clean => target.fetch('clean', 'false'),
+          :properties => erb(File.read(template_file), service_configs)
         }
       end
     end
@@ -289,13 +290,12 @@ def add_autogen_comment_properties(properties, extension)
   # @param [String]     properties    Generated properties in string format
   # @param [String]     extension     Extension of the properties file to be generated
   # return [String]                   Properties with added AUTO_GEN_COMMENT comment
-  property_content = ""
-  if POUND_COMMENT.include?(extension.to_sym)
-    property_content = AUTO_GEN_COMMENT % ["##", "##"] + properties
+  if POUND_COMMENT.include?(extension)
+    properties = AUTO_GEN_COMMENT % ["##", "##"] + properties
   elsif DOUBLE_SLASH_COMMENT.include?(extension.to_sym)
-    property_content = AUTO_GEN_COMMENT % ["//", "//"] + properties
+    properties = AUTO_GEN_COMMENT % ["//", "//"] + properties
   end
-  property_content
+  return properties
 end
 
 def clean_target_dir(configs)
@@ -354,7 +354,6 @@ def erb(template, values)
   # Instantiate ERB in trim mode
   ERB.new(template, nil, '-').result(OpenStruct.new(values).instance_eval { binding })
 end
-
 
 args = {}
 
@@ -421,8 +420,8 @@ def validate_input(args)
     raise OptionParser::MissingArgument.new('Please provide either of --service or --component to build properties') \
     if args[:service].nil?
 
-    raise OptionParser::MissingArgument.new('Missing argument --role with --node') if !args[:node].nil? && args[:role].nil?
-    raise OptionParser::MissingArgument.new('Missing argument --node with --role') if args[:node].nil? && !args[:role].nil?
+    raise OptionParser::MissingArgument.new('Missing argument --role with --node') if !!args[:node] && args[:role].nil?
+    raise OptionParser::MissingArgument.new('Missing argument --node with --role') if args[:node].nil? && !!args[:role]
   end
 end
 
@@ -435,12 +434,10 @@ scope['node'] = args[:node] if args.key?(:node)
 scope['role'] = args[:role] if args.key?(:role)
 
 $hiera = Hiera.new(:config => _get_hiera_config(args))
-if !args[:service].nil?
+if !!args[:service]
   service_configs = generate_service_properties(args[:service], scope)
-  generate_properties_file(args[:service], service_configs, args[:dry_run], args[:target_dir], false) \
-  unless service_configs.nil?
+  generate_properties_file(args[:service], service_configs, args[:dry_run], args[:target_dir], false) unless service_configs.nil?
 else
   components = parse_components(args[:comp], scope)
-  generate_properties_file(args[:comp], components, args[:dry_run], args[:target_dir], true, args[:validate_properties]) \
-  unless components.nil?
+  generate_properties_file(args[:comp], components, args[:dry_run], args[:target_dir], true, args[:validate_properties]) unless components.nil?
 end
