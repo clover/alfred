@@ -1,0 +1,4 @@
+---
+lookup_options:
+  component::memcached:
+    :behavior: 'native'       # Using deeper merge can result in unexpected array merges

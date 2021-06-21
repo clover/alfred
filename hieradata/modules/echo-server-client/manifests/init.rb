@@ -1,11 +1,10 @@
-class EchoServer
+class EchoServerClient
   attr_accessor :service_name,
-                :port,
-                :host_tag
+                :port
 
   def initialize
     @service_name = nil
     @port = nil
-    @host_tag= nil
+    @modules = ['echo-server']
   end
 end

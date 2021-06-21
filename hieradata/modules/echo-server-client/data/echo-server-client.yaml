@@ -1,0 +1,8 @@
+echo-server-client::service_name: echo-server-client
+echo-server-client::port: 2223
+
+echo-server-client::target_file_names:
+  - target_dir: ~
+    files:
+      - template: echo-server-client.properties.erb
+        name: dev.echo.properties

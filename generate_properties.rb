@@ -10,6 +10,7 @@ require 'fileutils'
 require 'pathname'
 require 'deep_merge'
 
+
 # Use this lookup as default for components
 DEFAULT_COMPONENT_LOOKUP = {
   :behavior => 'hash',
@@ -30,11 +31,10 @@ def get_manifest_name(hierarchy_name)
   hierarchy_name.split(/[_.-]/).collect(&:capitalize).join
 end
 
+# Gem version defined in the Gemfile
+# @param [String]  gem_name   Name of the gem to lookup in GemFile
+# @return Gem::Version      The version number defined in gem file in String format
 def get_gem_version(gem_name)
-  # Gem version defined in the Gemfile
-  # @param [String]  gem_name   Name of the gem to lookup in GemFile
-  # @return [Gem::Version]      The version number defined in gem file in String format
-
   File.readlines('Gemfile').each do |line|
     if line.include?(gem_name)
       line.gsub!("'", "")
@@ -44,11 +44,10 @@ def get_gem_version(gem_name)
   end
 end
 
+# @param [String]  lookup_value     value to lookup in hiera backends.
+# @param [Hash]    options   lookup options for value.
+# @return [Hash]                    value fetched from the hiera backends.
 def lookup(lookup_value, options, scope)
-  # @param [String]  lookup_value     value to lookup in hiera backends.
-  # @param [Hash]    lookup_options   lookup options for value.
-  # @return [Hash]                    value fetched from the hiera backends.
-
   if !options.nil? && !options.fetch(:behavior, nil).nil?
     installed_hiera_version = Gem::Version.new(Hiera.version.to_s)
     required_hiera_version = get_gem_version('hiera')
@@ -69,11 +68,10 @@ def lookup(lookup_value, options, scope)
   config_value
 end
 
-def parse_components(components, scope, parsed_components = {}, lookup_options = nil)
-  # @param [Array<String>]  components      Array of components to be parsed
-  # @param [Hash]           lookup_options  Parsed of module's lookup_options.yaml
-  # @return [Hash]                          Key value pairs of component name and its substituted erb template in string format
-
+# @param [Array<String>]  components      Array of components to be parsed
+# @param [Hash]           lookup_options  Parsed of module's lookup_options.yaml
+# @return [Array]                          Key value pairs of component name and its substituted erb template in string format
+def parse_components(components, scope, parsed_components = {}, lookup_options = {})
   configs = {}
   comp_templates = []
   use_comp_lookup = lookup_options.nil? || lookup_options.empty?
@@ -88,8 +86,8 @@ def parse_components(components, scope, parsed_components = {}, lookup_options =
       return nil
     end
     comp_obj = Object.const_get(get_manifest_name(comp)).new
-    raise "Could not find any declared variables in #{comp}'s manifest'. Please make sure variables are defined under \
-           attr_accessor and initialized in the initialize method" if comp_obj.instance_variables.empty?
+    raise 'Could not find any declared variables in #{comp}\'s manifest. Please make sure variables are defined under \
+           attr_accessor and initialized in the initialize method' if comp_obj.instance_variables.empty?
     comp_obj.instance_variables.each do |var|
       var = "#{var}".sub("@", "")
       lookup_value = "component::#{var}"
@@ -132,14 +130,13 @@ def load_module?(module_name)
   return false
 end
 
+# Lookup properties for a given module.
+#
+# @param [String] mod                Name of the module
+# @param [Hash]   scope              The scope generated at input to be used for hiera lookups
+# @param [Hash]   service_configs    A hash of any service configs that are already parsed from any dependent modules
+# @returns [Hash]                    Updated service_configs hash
 def lookup_properties(mod, scope, service_configs = {})
-  # Lookup properties for a given module.
-  #
-  # @param [String] mod                Name of the module
-  # @param [Hash]   scope              The scope generated at input to be used for hiera lookups
-  # @param [Hash]   service_configs    A hash of any service configs that are already parsed from any dependent modules
-  # @returns [Hash]                    Updated service_configs hash
-
   mod_obj = Object.const_get(get_manifest_name(mod)).new
   instance_properties = mod_obj.instance_variables
   lookup_options = $hiera.lookup('lookup_options', {}, { 'service' => mod })
@@ -159,16 +156,15 @@ def lookup_properties(mod, scope, service_configs = {})
   service_configs
 end
 
+# Recursively parse dependent modules modules provided in the 'modules' instance variable of the manifest.
+# This will also raise an exception if a circular dependency of modules is detected (A -> B -> A).
+#
+# @param [Array<String>]  modules                   An array containing a list of dependent modules
+# @param [Hash]           service_configs           A hash containing any service configs already parsed
+# @param [Hash]           scope                     The scope generated at input to be used for hiera lookups
+# @param [Array<String>]  parsed_modules            An array containing a list of already parsed modules
+# @return [Hash]                                    A hash of updated service_configs
 def parse_modules(modules, service_configs, scope, parsed_modules = [])
-  # Recursively parse dependent modules modules provided in the 'modules' instance variable of the manifest.
-  # This will also raise an exception if a circular dependency of modules is detected (A -> B -> A).
-  #
-  # @param [Array<String>]  modules                   An array containing a list of dependent modules
-  # @param [Hash]           service_configs           A hash containing any service configs already parsed
-  # @param [Hash]           scope                     The scope generated at input to be used for hiera lookups
-  # @param [Array<String>]  parsed_modules            An array containing a list of already parsed modules
-  # @return [Hash]                                    A hash of updated service_configs
-
   modules.each do |mod|
     raise "Circular module dependency detected in module #{mod}" if !parsed_modules.nil? && parsed_modules.include?(mod)
     parsed_modules << mod
@@ -181,19 +177,19 @@ def parse_modules(modules, service_configs, scope, parsed_modules = [])
     end
     return lookup_properties(mod, scope, service_configs)
   end
+  return service_configs
 end
 
+# Generate service properties by substituting erb templates in the templates directory for the module.
+# All properties are listed in init.rb for each module, and properties are looked up in the format <module_name>::<config_value>.
+# Components are separately parsed from the @components in init.rb. Each component is looked up using component::<component_name>.
+# Each component has its own template which are first substituted and then merged with the module's generated template.
+#
+# @param  [String]        service_name  Name of the module
+# @param  [scope]         scope         The scope generated at input to be used for hiera lookups
+# @return [Array<Hash>]                 An array of hashes containing file_name, file_path, properties and boolean to clean the target
+#                                       directories of the file to be generated
 def generate_service_properties(service_name, scope)
-  # Generate service properties by substituting erb templates in the templates directory for the module.
-  # All properties are listed in init.rb for each module, and properties are looked up in the format <module_name>::<config_value>.
-  # Components are separately parsed from the @components in init.rb. Each component is looked up using component::<component_name>.
-  # Each component has its own template which are first substituted and then merged with the module's generated template.
-  #
-  # @param  [String]          Name of the module
-  # @param  [scope]           The scope generated at input to be used for hiera lookups
-  # @return [Array<Hash>]     An array of hashes containing file_name, file_path, properties and boolean to clean the target
-  #                           directories of the file to be generated
-
   modules_dir = File.join("hieradata", "modules")
   return nil unless load_module?(service_name)
 
@@ -284,12 +280,12 @@ def validate_properties(property, path)
   end
 end
 
+# Add the AUTO_GEN_COMMENT at the beginning of properties based on file extension
+#
+# @param [String]     properties    Generated properties in string format
+# @param [String]     extension     Extension of the properties file to be generated
+# return [String]                   Properties with added AUTO_GEN_COMMENT comment
 def add_autogen_comment_properties(properties, extension)
-  # Add the AUTO_GEN_COMMENT at the beginning of properties based on file extension
-  #
-  # @param [String]     properties    Generated properties in string format
-  # @param [String]     extension     Extension of the properties file to be generated
-  # return [String]                   Properties with added AUTO_GEN_COMMENT comment
   if POUND_COMMENT.include?(extension)
     properties = AUTO_GEN_COMMENT % ["##", "##"] + properties
   elsif DOUBLE_SLASH_COMMENT.include?(extension.to_sym)
@@ -298,24 +294,22 @@ def add_autogen_comment_properties(properties, extension)
   return properties
 end
 
+# Clean the "target_dir" when clean is set to true
+# @param  [Hash]    configs       config hash containing :name, :path, :clean and :properties
 def clean_target_dir(configs)
-  # Clean the "target_dir" when clean is set to true
-  # @param  [Hash]    configs       config hash containing :name, :path, :clean and :properties
-
   configs.each { |config| FileUtils.rm_rf(config[:path]) if config[:clean] == "true" }
 end
 
+# Generate properties file from the service template. Generated properties files will be placed in service's resources
+# directory.
+#
+# @param [String]   name          name for the element to be built
+# @param [Boolean]  dry_run       Set to false if properties file should be generated else only properties will be
+#                                 printed on the console
+# @param [Hash]     configs       Hash containing pairs of target file names and substituted erb templates
+# @param [Object]   target_dir    Optional param to provide the designated directory to place the generated properties
+# @param [Boolean]  is_component  create file for component properties
 def generate_properties_file(name, configs, dry_run, target_dir, is_component, validate = false)
-  # Generate properties file from the service template. Generated properties files will be placed in service's resources
-  # directory.
-  #
-  # @param [String]   name          name for the element to be built
-  # @param [Boolean]  dry_run       Set to false if properties file should be generated else only properties will be
-  #                                 printed on the console
-  # @param [Hash]     configs       Hash containing pairs of target file names and substituted erb templates
-  # @param [Object]   target_dir    Optional param to provide the designated directory to place the generated properties
-  # @param [Boolean]  is_component  create file for component properties
-
   service_resources = File.join("..", name, "src", "main", "resources")
   clean_target_dir(configs) unless dry_run
   configs.each do |file|
@@ -412,14 +406,12 @@ def _get_hiera_config(args)
   config
 end
 
+# Validate that service name is provided and only one of env or node is provided
+# @param [Object]  args   Input arguments passed to script
 def validate_input(args)
-  # Validate that service name is provided and only one of env or node is provided
-  # @param [Object]  args   Input arguments passed to script
-
   if args[:comp].nil?
     raise OptionParser::MissingArgument.new('Please provide either of --service or --component to build properties') \
     if args[:service].nil?
-
     raise OptionParser::MissingArgument.new('Missing argument --role with --node') if !!args[:node] && args[:role].nil?
     raise OptionParser::MissingArgument.new('Missing argument --node with --role') if args[:node].nil? && !!args[:role]
   end
