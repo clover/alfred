@@ -1,8 +1,10 @@
-require 'hiera'
-require 'deep_merge'
-require 'optparse'
-require 'yaml'
-require 'pathname'
+require "hiera"
+require "deep_merge"
+require "optparse"
+require "yaml"
+require "pathname"
+require "erb"
+require "ostruct"
 
 # Use this lookup as default for components
 DEFAULT_COMPONENT_LOOKUP = {
@@ -188,27 +190,31 @@ def generate_config_file(entities, entity_type, configs, dry_run, target_dir, sc
     # Get target_dir from configs
     target_dir_key = TARGET_DIR_KEY % entity
     target_dir_config = lookup(target_dir_key, { :target_dir => target_dir }, lookup_options&.[](target_dir_key), scope)
-    files = target_dir_config.dig("files")
-
     config_files_and_templates = {}
 
-    if !!files
-      files.each do |file|
-        config_files_and_templates = {
-          :target_dir => target_dir_config.dig(:target_dir),
-          :name       => file.dig(:name),
-          :template   => file.dig(:template).chomp(".erb")
-        }
-      end
-    else
-      templates = Dir[File.join("hieradata", "modules", entity, "templates")]
-      templates.each do |template|
-        file_name = template.chomp(".erb")
-        file_body = render_template(template, configs)
-        config_files_and_templates[file_name] = file_body
+    target_dir_config.each do |target_dir|
+      files = target_dir&.[]("files")
+      puts files
+      if !!files
+        files.each do |file|
+          config_files_and_templates = {
+            :target_dir => target_dir.dig(:target_dir),
+            :name       => file.dig(:name),
+            :template   => file.dig(:template).chomp(".erb")
+          }
+        end
+      else
+        templates = Dir[File.join("hieradata", "modules", entity, "templates")]
+        templates.each do |template|
+          file_name = template.chomp(".erb")
+          file_body = render_template(template, configs)
+          config_files_and_templates[file_name] = file_body
+        end
       end
     end
 
+    puts "Config files and templates"
+    puts config_files_and_templates
     if dry_run
       config_files_and_templates.each do |file_name, file_body|
         puts File.expand_path(file_name)
@@ -225,8 +231,23 @@ def generate_config_file(entities, entity_type, configs, dry_run, target_dir, sc
 end
 
 
-def validate_target_files()
-  
+# Validate the target dirs
+# @param [Object]  target_config     Validate the provided target_dir_config
+def validate_target_files(target_config)
+  # target_config should be an array
+  raise ValidationError.new("target_config_dir should be an Array") unless target_config.is_a?(Array)
+
+  target_config.each do |config|
+    # Each element must have `target_dir` and `files`
+    raise ValidationError.new("Each element must have `target_dir` and `files`") unless config.key?("target_dir") && config.key?("files")
+    files = config["files"]
+    # Files in target_file_names should be a list
+    raise ValidationError.new("Files in target_file_names should be a list") unless config["files"].is_a?(Array)
+    config["files"].each do |file_config|
+      raise ValidationError.new("Each file configuration must contain keys `template` and `name`") unless file_config.key?("files") && file_config.key?("name")
+      
+    end
+  end
 end
 
 def render_template(template, configs)

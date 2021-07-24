@@ -5,4 +5,4 @@ echo-server-client::target_file_names:
   - target_dir: ~
     files:
       - template: echo-server-client.properties.erb
-        name: dev.echo.properties
+        name: dev.echo-client.properties
