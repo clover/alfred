@@ -2,7 +2,6 @@
     // Use IntelliSense to learn about possible attributes.
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-
     // Opening VSCode through command line allows environment variables to be set. Starting through GUI might not always work.
     "version": "0.2.0",
     "configurations": [
@@ -10,15 +9,22 @@
             "name": "Generate Config File",
             "type": "Ruby",
             "request": "launch",
-            "program": "${workspaceRoot}/generate_properties.rb",
+            "program": "${workspaceRoot}/alfred.rb",
             "args": ["--service", "echo-server-client", "--debug"],
         },
         {
             "name": "Dry Run",
             "type": "Ruby",
             "request": "launch",
-            "program": "${workspaceRoot}/generate_properties.rb",
+            "program": "${workspaceRoot}/alfred.rb",
             "args": ["--service", "echo-server-client", "--dry-run", "--debug"],
+        },
+        {
+            "name": "Dry Run components",
+            "type": "Ruby",
+            "request": "launch",
+            "program": "${workspaceRoot}/alfred.rb",
+            "args": ["--component", "memcached", "--dry-run", "--debug", "--dry-run"],
         }
     ]
 }

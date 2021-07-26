@@ -1,5 +1,5 @@
 class ValidationError < StandardError
   def initialize(msg = nil)
-    super(message)
+    super(msg)
   end
 end
